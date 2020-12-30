@@ -24,6 +24,8 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+use futures::stream::FusedStream;
+
 use crate::common::{self, JsonValue};
 use crate::raw::{client::RawClientEvent, RawClient, RawClientRequestId};
 use crate::transport::TransportClient;
@@ -235,15 +237,20 @@ where
     /// Returns the next notification sent from the server.
     ///
     /// Ignores any malformed packet.
-    pub async fn next(&mut self) -> Notif {
+    pub async fn next(&mut self) -> Option<Notif> {
         loop {
+            if self.notifs_rx.is_terminated() {
+                return None;
+            }
             match self.notifs_rx.next().await {
                 Some(n) => {
                     if let Ok(parsed) = common::from_value(n) {
-                        return parsed;
+                        return Some(parsed);
                     }
                 }
-                None => futures::pending!(),
+                None => {
+                    return None;
+                }
             }
         }
     }
